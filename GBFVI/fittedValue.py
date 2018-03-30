@@ -47,8 +47,6 @@ class FittedValueIteration(object):
 
             # state representations not actual states
             for currentState, reward, nextState in X:
-                # if nextState[0] == "13" or nextState[0] == "38":
-                #     print("we at a goal lets see some numbers")
                 nextStateValue = self.getStateValueFromTree(currentState, nextState)
                 values[currentState[0]] = reward + discountFactor*nextStateValue
                 facts.extend(currentState[1])
