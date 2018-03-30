@@ -9,14 +9,14 @@ class Chain(object):
           "excellent(+state)",
           "value(state)"]
     
-    def __init__(self,number=1,start=False):
+    def __init__(self,start=False):
         '''class constructor'''
         if start:
-            self.state_number = number
             self.chain = [0 for i in range(50)]
             self.chain[13],self.chain[38] = 1,1
             self.all_actions = ["left","right"]
             self.position = random.randint(0,49)
+            self.goalReward = 100
         #self.features = ["kernel1dens","kernel2dens"]
 
     def goldPositions(self):
@@ -24,9 +24,15 @@ class Chain(object):
         return [13,38]
 
     def goal(self):
+        # print (self.position)
         if self.position == 13 or self.position == 38:
             return True
         return False
+        
+    def getReward(self):
+        if self.goal():
+            return 100
+        return -1
 
     def valid(self,position):
         '''check if chain cell is valid'''
@@ -39,9 +45,9 @@ class Chain(object):
         '''returns new state
            invalid action does nothing
         '''
-        self.state_number += 1
         cell = self.position
         if self.goal():
+            self.goalReward = 0
             return self
         if action not in self.all_actions:
             return self
@@ -70,18 +76,21 @@ class Chain(object):
             potentials += [potential]
         for potential in potentials:
             if potential >= 0.6:
-                facts.append("excellent(s"+str(self.state_number)+")")
+                facts.append("excellent(s{})".format(self.__str__()))
             if potential >= 0.1 and potential < 0.6:
-                facts.append("high(s"+str(self.state_number)+")")
+                facts.append("high(s{})".format(self.__str__()))
             if potential >= 0.01 and potential < 0.1:
-                facts.append("low(s"+str(self.state_number)+")")
+                facts.append("low(s{})".format(self.__str__()))
             elif potential < 0.01:
-                facts.append("poor(s"+str(self.state_number)+")")
+                facts.append("poor(s{})".format(self.__str__()))
         return facts
 
     def sample(self,pdf):
         cdf = [(i, sum(p for j,p in pdf if j < i)) for i,_ in pdf]
-        R = max(i for r in [random.random()] for i,c in cdf if c <= r)
+        try:
+            R = max(i for r in [random.random()] for i,c in cdf if c <= r)
+        except ValueError:
+            R = random.choice(self.all_actions)
         return R
 
     def execute_random_action(self):
@@ -97,7 +106,7 @@ class Chain(object):
         probability_distribution_function = zip(random_actions,action_probabilities)
         sampled_action = self.sample(probability_distribution_function)
         new_state = self.execute_action(sampled_action)
-        return (new_state,[sampled_action],actions_not_executed)
+        return (new_state,sampled_action,actions_not_executed)
 
     def kernelProb(self,cell,kernel,std):
         '''gaussian kernel'''
@@ -122,6 +131,9 @@ class Chain(object):
            will output this content
         '''
         return "gold positions: "+" ".join([str(i) for i in self.goldPositions()])+"\n"
+
+    def __str__(self):
+        return "{}".format(self.position)
 '''
 with open("chain_out.txt","a") as f:
     i = 0

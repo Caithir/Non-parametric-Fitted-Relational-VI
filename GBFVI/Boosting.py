@@ -41,13 +41,13 @@ class Boosting(object):
         sumOfGradients = 0
         for tree in trees: #add leaf values satisfied by example in each tree
             gradient = Boosting.inferTreeValue(tree,example,data)
-            print ("value of example: ",gradient)
+            # print ("value of example: ",gradient)
             if gradient != None:
                 sumOfGradients += gradient
         return sumOfGradients #return the sum
 
     @staticmethod
-    def updateGradients(data,trees,loss="LS",delta=1.3):
+    def updateGradients(data,trees,loss="LS",delta=10):
         '''updates the gradients of the data'''
         if not data.regression:
             logPrior = Boosting.logPrior
@@ -86,7 +86,7 @@ class Boosting(object):
                     gradient = trueValue - exampleValue
                     updatedGradient = 0
                     if gradient:
-                        if abs(gradient) > float(delta):
+                        if gradient > float(delta):
                             updatedGradient = gradient/float(abs(gradient))
                         elif gradient <= float(delta):
                             updatedGradient = gradient

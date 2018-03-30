@@ -55,7 +55,6 @@ class Admin():
 
     def __init__(self,number=1,start=False):
         if start:
-            self.state_number = number
             self.networks = [Network(str(i+1)) for i in range(random.randint(1,2))]
             self.all_actions = []
 
@@ -71,8 +70,13 @@ class Admin():
                 return True
         return False
 
+    def getReward(self):
+        if self.goal:
+            return 100
+        return -1
+
     def execute_action(self,action):
-        self.state_number += 1
+        # self.state_number += 1
         network = action[0]
         node = action[1]
         if network.contains(node):
@@ -85,15 +89,18 @@ class Admin():
             net_id = "net"+network.id()
             for node in network.get_nodes():
                 node_id = "node"+node.id()
-                facts.append("nodeIn(s"+str(self.state_number)+","+node_id+","+net_id+")")
+                facts.append("nodeIn(s{},{},{}".format(self.__str__(),node_id,net_id))
                 #network_facts += [[node.id(),node.active(),node.buffer_size()]]
                 if not node.active():
-                    facts.append("overloaded(s"+str(self.state_number)+","+node_id+")")
+                    facts.append("overloaded(s{},{}".format(self.__str__(),node_id))
         return facts
 
     def sample(self,pdf):
         cdf = [(i, sum(p for j,p in pdf if j < i)) for i,_ in pdf]
-        R = max(i for r in [random.random()] for i,c in cdf if c <= r)
+        try:
+            R = max(i for r in [random.random()] for i,c in cdf if c <= r)
+        except ValueError:
+            R = random.choice(self.all_actions)
         return R
 
     def execute_random_action(self):
@@ -111,6 +118,14 @@ class Admin():
         sampled_action = self.sample(probability_distribution_function)
         new_state = self.execute_action(sampled_action)
         return (new_state,[sampled_action],actions_not_executed)
+
+    def __str__(self):
+        info = []
+        for network in self.networks:
+            for node in network.get_nodes():
+                info.append("Net:{}_Node:{}_Buffer:{}_Alive:{}".format(network.id(), node.id(), node.buffer_size(), node.active()))
+                
+        return "".join(info)
 '''
 with open("net_admin_out.txt","a") as f:
     i = 0

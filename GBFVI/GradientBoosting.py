@@ -44,4 +44,5 @@ class GradientBoosting(object):
             data = Utils.setTestData(target=target,facts=facts,examples=examples,regression=self.regression)
             Boosting.performInference(data,self.trees[target])
             self.testExamples[target] = data.examples
+            valueset = set(list(data.examples.values()))
             print (data.examples)

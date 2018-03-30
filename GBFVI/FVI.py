@@ -1,21 +1,18 @@
-from box_world import Logistics
-from wumpus import Wumpus
-from blocks import Blocks_world
-from blackjack import Game
-from chain import Chain
-from net_admin import Admin
-#from pong import Pong #--> uncomment to run Pong
-from tetris import Tetris #--> uncomment to run Tetris
+from simulators import *
+from simulators.box_world import Logistics
+from simulators.wumpus import Wumpus
+from simulators.blocks import Blocks_world
+from simulators.blackjack import Game
+from simulators.chain import Chain
+from simulators.net_admin import Admin
+# from pong import Pong #--> uncomment to run Pong
+# from tetris import Tetris #--> uncomment to run Tetris
 from time import clock
 from GradientBoosting import GradientBoosting
 
 class FVI(object):
 
     def __init__(self,transfer=0,simulator="logistics",batch_size=1,number_of_iterations=10,loss="LS",trees=10):
-	'''transfer = 1, means a prespecified number of iterations are run and learning
-	   the regression model using RFGB, (relational model) before starting fitted
-           value iteration with the learned values
-	'''
         self.transfer = transfer
         self.simulator = simulator
         self.batch_size = batch_size
@@ -23,19 +20,9 @@ class FVI(object):
         self.trees = trees
         self.number_of_iterations = number_of_iterations
         self.model = None
-	self.state_number = 1
         self.compute_transfer_model()
 
-    def compute_value_of_trajectory(self,values,trajectory,discount_factor=0.97,goal_value=10,AVI=False):
-	'''computes the value of a trajectory
-           if trajectory from AVI=True, then gather next state value from prediciton
-           else gather it from the discounted number of steps from the goal times the goal reward
-           there is only one trajectory, therefore, R + gamma*expected(next_state_value) becomes
-           R + gamma*next_state_value
-	   hence this was carried out as shown in the code
-           reason for not averaging (expected value) is because everytime the objects are different
-           Hence, it may appear to be a TD update, but it is not.
-	''' 
+    def compute_value_of_trajectory(self,values,trajectory,discount_factor=.9,goal_value=100,AVI=False): 
         reversed_trajectory = trajectory[::-1]
         number_of_transitions = len(reversed_trajectory)
         if not AVI:
@@ -45,7 +32,9 @@ class FVI(object):
                 value_of_state = (goal_value)*(discount_factor**i) #immediate reward 0
                 key = (state_number,tuple(state))
                 values[key] = value_of_state
+
         elif AVI:
+            # state here is the facts from a simulator object
             for i in range(number_of_transitions-1):
                 state_number = trajectory[i][0]
                 state = trajectory[i][1]
@@ -61,48 +50,40 @@ class FVI(object):
                 
             
     def compute_transfer_model(self):
-	'''computes the transfer model if transfer=1
-           therefore it computes transfer model over 6 iterations
-           if set to 1, which can be changed in the code
-	   otherwise, it uses at least one trajectory to compute the initial model
-           before starting fitted value iteration.
-	   Note that in the transfer start state, parameters to allow different grid sizes,
-	   lets say for wumpus world can be set during object call if allowable by the constructor.
-	'''
         facts,examples,bk = [],[],[]
         i = 0
         values = {}
-        while i < 1: #at least one iteration burn in time
+        while i < self.transfer*5+1: #at least one iteration burn in time
             if self.simulator == "logistics":
-                state = Logistics(number=self.state_number,start=True)
+                state = Logistics(start=True)
                 if not bk:
                     bk = Logistics.bk
             elif self.simulator == "pong":
-                state = Pong(number=self.state_number,start=True)
+                state = Pong(start=True)
                 if not bk:
                     bk = Pong.bk
             elif self.simulator == "tetris":
-                state = Tetris(number=self.state_number,start=True)
+                state = Tetris(start=True)
                 if not bk:
                     bk = Tetris.bk
             elif self.simulator == "wumpus":
-                state = Wumpus(number=self.state_number,start=True)
+                state = Wumpus(start=True)
                 if not bk:
                     bk = Wumpus.bk
             elif self.simulator == "blocks":
-                state = Blocks_world(number=self.state_number,start=True)
+                state = Blocks_world(start=True)
                 if not bk:
                     bk = Blocks_world.bk
             elif self.simulator == "blackjack":
-                state = Game(number=self.state_number,start=True)
+                state = Game(start=True)
                 if not bk:
                     bk = Game.bk
             elif self.simulator == "50chain":
-                state = Chain(number=self.state_number,start=True)
+                state = Chain(start=True)
                 if not bk:
                     bk = Chain.bk
             elif self.simulator == "net_admin":
-                state = Admin(number=self.state_number,start=True)
+                state = Admin(start=True)
                 if not bk:
                     bk = Admin.bk
             with open(self.simulator+"_transfer_out.txt","a") as f:
@@ -148,32 +129,27 @@ class FVI(object):
                         break
                 if within_time:
                     self.compute_value_of_trajectory(values,trajectory)
-		    self.state_number += len(trajectory)+1
                     for key in values:
                         facts += list(key[1])
                         example_predicate = "value(s"+str(key[0])+") "+str(values[key])
                         examples.append(example_predicate)
                     i += 1
-        reg = GradientBoosting(regression = True,treeDepth=2,trees=self.trees,loss=self.loss)
+        reg = GradientBoosting(regression = True,treeDepth=2,trees=self.trees,sampling_rate=0.7,loss=self.loss)
         reg.setTargets(["value"])
         reg.learn(facts,examples,bk)
         self.model = reg
         self.AVI()
-	if self.transfer:
-	    self.AVI()
 
     def compute_bellman_error(self,values):
-        bellman_errors = []
+        bellman_error = []
         inferred_values = self.model.testExamples["value"]
         for key in values:
             predicate = "value(s"+str(key[0])+")"
             inferred_value = inferred_values[predicate]
             computed_value = values[key]
-            bellman_error = computed_value - inferred_value 
-            bellman_errors.append(abs(bellman_error))
-            values[key] = inferred_value + bellman_error
-        #return max(bellman_errors)
-        return sum(bellman_errors)/float(len(bellman_errors)) #average bellman error
+            bellman_error.append(abs(inferred_value-computed_value))
+            values[key] += computed_value-inferred_value
+        return sum(bellman_error)/float(len(bellman_error)) #average bellman error
 
     def AVI(self):
         for i in range(self.number_of_iterations):
@@ -182,35 +158,35 @@ class FVI(object):
             values = {}
             while j < self.batch_size:
                 if self.simulator == "logistics":
-                    state = Logistics(number=self.state_number,start=True)
+                    state = Logistics(start=True)
                     if not bk:
                         bk = Logistics.bk
                 elif self.simulator == "pong":
-                    state = Pong(number=self.state_number,start=True)
+                    state = Pong(start=True)
                     if not bk:
                         bk = Pong.bk
                 elif self.simulator == "tetris":
-                    state = Tetris(number=self.state_number,start=True)
+                    state = Tetris(start=True)
                     if not bk:
                         bk = Tetris.bk
                 elif self.simulator == "wumpus":
-                    state = Wumpus(number=self.state_number,start=True)
+                    state = Wumpus(start=True)
                     if not bk:
                         bk = Wumpus.bk
                 elif self.simulator == "blocks":
-                    state = Blocks_world(number=self.state_number,start=True)
+                    state = Blocks_world(start=True)
                     if not bk:
                         bk = Blocks_world.bk
                 elif self.simulator == "blackjack":
-                    state = Game(number=self.state_number,start=True)
+                    state = Game(start=True)
                     if not bk:
                         bk = Game.bk
                 elif self.simulator == "50chain":
-                    state = Chain(number=self.state_number,start=True)
+                    state = Chain(start=True)
                     if not bk:
                         bk = Chain.bk
                 elif self.simulator == "net_admin":
-                    state = Admin(number=self.state_number,start=True)
+                    state = Admin(start=True)
                     if not bk:
                         bk = Admin.bk
                 with open(self.simulator+"_FVI_out.txt","a") as fp:
@@ -251,8 +227,7 @@ class FVI(object):
                         elif self.simulator == "net_id" and time_elapsed > 1:
                             within_time = False
                     if within_time:
-                        self.compute_value_of_trajectory(values,trajectory)
-			self.state_number += 1
+                        self.compute_value_of_trajectory(values,trajectory,AVI=True)
                         for key in values:
                             facts += list(key[1])
                             example_predicate = "value(s"+str(key[0])+") "+str(values[key])

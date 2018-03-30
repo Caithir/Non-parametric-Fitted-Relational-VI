@@ -27,6 +27,13 @@ class Game(object):
     def factored(self):
         '''returns factored state'''
         return [float(item) for item in list(self.hand)]
+        
+    def getReward(self):
+        if self.goal:
+            return 100
+        if self.bust():
+            return -50
+        return 0
 
     def goal(self):
         '''checks who won'''
@@ -60,24 +67,27 @@ class Game(object):
     def get_state_facts(self):
         facts = []
         if int(self.hand[0]) in range(1,12):
-            facts.append("player_sum(s"+str(self.state_number)+",low)")
+            facts.append("player_sum(s{},low)".format(self.__str__()))
         elif int(self.hand[0]) in range(12,17):
-            facts.append("player_sum(s"+str(self.state_number)+",high)")
+            facts.append("player_sum(s{},high)".format(self.__str__()))
         elif int(self.hand[0]) in range(17,21):
-            facts.append("player_sum(s"+str(self.state_number)+",very_high)")
+            facts.append("player_sum(s{},very_high)".format(self.__str__()))
         elif int(self.hand[0]) == 21:
-            facts.append("player_sum(s"+str(self.state_number)+",blackjack)")
+            facts.append("player_sum(s{},blackjack)".format(self.__str__()))
         if int(self.hand[1]) in range(1,5):
-            facts.append("dealer_face_card(s"+str(self.state_number)+",low)")
+            facts.append("dealer_face_card(s{},low)".format(self.__str__()))
         elif int(self.hand[1]) in range(5,8):
-            facts.append("dealer_face_card(s"+str(self.state_number)+",high)")
+            facts.append("dealer_face_card(s{},high)".format(self.__str__()))
         elif int(self.hand[1]) in range(8,11):
-            facts.append("dealer_face_card(s"+str(self.state_number)+",very_high)")
+            facts.append("dealer_face_card(s{},very_high)".format(self.__str__()))
         return facts
 
     def sample(self,pdf):
         cdf = [(i, sum(p for j,p in pdf if j < i)) for i,_ in pdf]
-        R = max(i for r in [random.random()] for i,c in cdf if c <= r)
+        try:
+            R = max(i for r in [random.random()] for i,c in cdf if c <= r)
+        except ValueError:
+            R = random.choice(self.all_actions)
         return R
 
     def execute_random_action(self):
@@ -130,6 +140,9 @@ class Game(object):
         rStr += "\nDealer hidden card: "+str(self.initDCards[1])
         rStr += "\nwinner must get to 21 or close\n"
         return rStr
+
+    def __str__(self):
+        return "{}:{}".format(self.hand[0], self.hand[1])
 '''
 with open("black_jack_out.txt","a") as f:
     i = 0

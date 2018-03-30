@@ -10,7 +10,10 @@ from random import sample
 class Term(object):
     '''class for term in prolog proof'''
     def __init__ (self, s) :   # expect "x(y,z...)"
-        if s[-1] != ')' : fatal("Syntax error in term: %s" % [s])
+        if s[-1] != ')':
+            print("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+            print(s)
+            fatal("Syntax error in term: %s" % [s])
         flds = s.split('(')
         if len(flds) != 2 : fatal("Syntax error in term: %s" % [s])
         self.args = flds[1][:-1].split(',')

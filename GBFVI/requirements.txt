@@ -1,0 +1,7 @@
+sklearn
+numpy==1.14.0
+scipy==1.0.0
+pygame==1.9.3
+pyHook==1.5.1
+pyuserinput==0.1.11
+pypiwin32==219

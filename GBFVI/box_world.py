@@ -82,13 +82,13 @@ class Box(object):
         self.location = location
 
     def __repr__(self):
-        return "b"+str(self.box_number)
+        return "b{}".format(str(self.box_number))
 
 class Truck(object):
 
     def __init__(self,number,city):
         self.boxes = []
-        self.MAX_BOXES = 10
+        self.MAX_BOXES = 5
         self.location = city #every truck starts at source city
         self.truck_number = number
 
@@ -147,7 +147,7 @@ class Logistics(object): #represents a world state
         combinations = []
         for truck in trucks:
             for city in cities:
-                combinations.append("move(s"+str(self.state_number)+","+str(truck)+","+str(city)+").")
+                combinations.append("move(s{},{},{}).".format(self.state_number,truck,city))
         return combinations
 
     def get_load_combinations(self,trucks):
@@ -156,7 +156,7 @@ class Logistics(object): #represents a world state
             boxes = city.unloaded_boxes
         for truck in trucks:
             for box in boxes:
-                combinations.append("load(s"+str(self.state_number)+","+str(box)+","+str(truck)+").")
+                combinations.append("load(s{},{},{}).".format(self.state_number,box,truck))
         return combinations
 
     def get_unload_combinations(self,trucks):
@@ -164,10 +164,10 @@ class Logistics(object): #represents a world state
         for truck in trucks:
             boxes = truck.get_boxes()
             for box in boxes:
-                combinations.append("unload(s"+str(self.state_number)+","+str(box)+","+str(truck)+").")
+                combinations.append("unload(s{},{},{}).".format(self.state_number,box,truck))
         return combinations
 
-    def __init__(self,number=1,start=False,):
+    def __init__(self,number=1,start=False):
         self.MAX_TRUCKS = 3
         self.state_number = number
         self.cities = None
@@ -187,6 +187,11 @@ class Logistics(object): #represents a world state
                 return True
         return False
 
+    def getReward(self):
+        if self.goal():
+            return 10
+        return 0
+
     def get_city(self,city_number):
         for city in self.cities:
             if city.get_number() == city_number:
@@ -195,7 +200,7 @@ class Logistics(object): #represents a world state
 
     def init_trucks(self,number_of_trucks=False):
         if not number_of_trucks:
-            number_of_trucks = self.MAX_TRUCKS #randint(1,self.MAX_TRUCKS)
+            number_of_trucks = randint(1,self.MAX_TRUCKS)
         for i in range(number_of_trucks):
             truck = Truck(i+1,self.cities[0])
             trucks = []
@@ -285,21 +290,24 @@ class Logistics(object): #represents a world state
         for city in self.cities:
             for truck in city.get_trucks():
                 for box in truck.get_boxes():
-                    box_fact = "bOn(s"+str(self.state_number)+","+str(box)+","+str(truck)+")"
+                    box_fact = "bOn(s{},{},{})".format(self.state_number,box,truck)
                     facts.append(box_fact)
-                truck_fact = "tIn(s"+str(self.state_number)+","+str(truck)+","+str(city)+")"
+                truck_fact = "tIn(s{},{},{})".format(self.state_number,truck,city)
                 facts.append(truck_fact)
             if str(city) == "c3": #destination city
-                city_fact = "destination(s"+str(self.state_number)+","+str(city)+")"
+                city_fact = "destination(s{},{})".format(self.state_number,city)
                 facts.append(city_fact)
             for box in city.unloaded_boxes:
-                city_fact = "bIn(s"+str(self.state_number)+","+str(box)+","+str(city)+")"
+                city_fact = "bIn(s{},{},{})".format(self.state_number,box,city)
                 facts.append(city_fact)
         return facts
 
     def sample(self,pdf):
         cdf = [(i, sum(p for j,p in pdf if j < i)) for i,_ in pdf]
-        R = max(i for r in [random()] for i,c in cdf if c <= r)
+        try:
+            R = max(i for r in [random.random()] for i,c in cdf if c <= r)
+        except ValueError:
+            R = random.choice(self.all_actions)
         return R
 
     def execute_random_action(self,N=2):
@@ -310,7 +318,6 @@ class Logistics(object): #represents a world state
             random_action = choice(self.all_actions)
             random_actions.append(random_action)
             action_potentials.append(randint(1,9))
-	action_potentials = [1 for i in range(N)]
         action_probabilities = [potential/float(sum(action_potentials)) for potential in action_potentials]
         actions_not_executed = [action for action in self.all_actions if action != random_action]
         probability_distribution_function = zip(random_actions,action_probabilities)
@@ -336,6 +343,8 @@ class Logistics(object): #represents a world state
         return_string += "boxes: "+box_string+"\n"
         return return_string
 
+    def __str__ (self):
+        return "".join(self.get_state_facts())
 '''
 start_state = State(1,start=True)
 print (start_state)

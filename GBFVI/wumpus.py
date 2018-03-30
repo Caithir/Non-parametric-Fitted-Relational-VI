@@ -15,20 +15,22 @@ class Wumpus(object):
             self.grid = [[0 for i in range(N)] for j in range(N)]
             self.goal_x,self.goal_y = self.size-1,self.size-1
             self.all_actions = ["left","right","top","down"]
-            x_w,y_w = random.randint(0,3),random.randint(0,3)
-            while x_w != self.goal_x and y_w != self.goal_y:
-                x_w,y_w = random.randint(0,3),random.randint(0,3)
-            self.grid[x_w][y_w] = 1 #wumpus
-            x_w,y_w = random.randint(0,3),random.randint(0,3)
-            while x_w != self.goal_x and y_w != self.goal_y:
-                x_w,y_w = random.randint(0,3),random.randint(0,3)
-            self.grid[x_w][y_w] = -1 #pit
+            self.grid[2][1] = 1 #wumpus
+            self.grid[3][1] = -1 #pit
             self.position = (0,0)
 
     def goal(self):
         if self.position == (self.goal_x,self.goal_y):
             return True
         return False
+
+    def getReward(self):
+        if self.goal():
+            return 100
+        # At the wumpus
+        if self.position[0] == 2 and self.position[1] == 1:
+            return -50
+        return -1 
 
     def valid(self,x,y):
         '''checks if (x,y) is a valid position'''
@@ -69,33 +71,36 @@ class Wumpus(object):
         facts = []
         valid = self.valid
         x,y = self.position[0],self.position[1]
-        if x == self.goal_x and y == self.goal_y:
-            facts.append("gold(s"+str(self.state_number)+")")
+        if self.goal():
+            facts.append("gold(s{})".format(self.__str__()))
         if valid(x-1,y):
             if self.grid[x-1][y] == 1:
-                facts.append("stench(s"+str(self.state_number)+")")
+                facts.append("stench(s{})".format(self.__str__()))
             if self.grid[x-1][y] == -1:
-                facts.append("breeze(s"+str(self.state_number)+")")
+                facts.append("breeze(s{})".format(self.__str__()))
         if valid(x+1,y):
             if self.grid[x+1][y] == 1:
-                facts.append("stench(s"+str(self.state_number)+")")
+                facts.append("stench(s{})".format(self.__str__()))
             if self.grid[x+1][y] == -1:
-                facts.append("breeze(s"+str(self.state_number)+")")
+                facts.append("breeze(s{})".format(self.__str__()))
         if valid(x,y+1):
             if self.grid[x][y+1] == 1:
-                facts.append("stench(s"+str(self.state_number)+")")
+                facts.append("stench(s{})".format(self.__str__()))
             if self.grid[x][y+1] == -1:
-                facts.append("breeze(s"+str(self.state_number)+")")
+                facts.append("breeze(s{})".format(self.__str__()))
         if valid(x,y-1):
             if self.grid[x][y-1] == 1:
-                facts.append("stench(s"+str(self.state_number)+")")
+                facts.append("stench(s{})".format(self.__str__()))
             if self.grid[x][y-1] == -1:
-                facts.append("breeze(s"+str(self.state_number)+")")
+                facts.append("breeze(s{})".format(self.__str__()))
         return facts
 
     def sample(self,pdf):
         cdf = [(i, sum(p for j,p in pdf if j < i)) for i,_ in pdf]
-        R = max(i for r in [random.random()] for i,c in cdf if c <= r)
+        try:
+            R = max(i for r in [random.random()] for i,c in cdf if c <= r)
+        except ValueError:
+            R = random.choice(self.all_actions)
         return R
 
     def execute_random_action(self,N=4):
@@ -111,6 +116,9 @@ class Wumpus(object):
         sampled_action = self.sample(probability_distribution_function)
         new_state = self.execute_action(sampled_action)
         return (new_state,[sampled_action],actions_not_executed)
+
+    def __str__(self):
+        return "x{}:y{}".format(self.position[0], self.position[1])
     '''
     def factored(self,state):
         #returns a factored state of

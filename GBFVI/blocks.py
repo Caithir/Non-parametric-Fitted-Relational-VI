@@ -10,13 +10,13 @@ class Block():
         self.clear = True
 
     def __repr__(self):
-        return "b"+self.block_number
+        return "b{}".format(self.block_number)
 
 class Tower():
 
     def __init__(self,number):
         self.tower_number = number
-        self.block_stack = [Block(self.tower_number+str(i)) for i in range(random.randint(1,3))]
+        self.block_stack = [Block(self.tower_number+str(i)) for i in range(random.randint(3,5))]
         top_block = Block(self.tower_number+str(len(self.block_stack)+1))
         top_block.set_clear()
         self.block_stack.append(top_block)
@@ -41,7 +41,7 @@ class Tower():
         return False
 
     def too_high(self):
-        if len(self.block_stack) > 1:
+        if len(self.block_stack) >= 3:
             return True
         return False
 
@@ -50,10 +50,16 @@ class Tower():
         for block in self.get_blocks():
             r += str(block)+", "
         return r[:-2]+"]"
+
+    def __str__(self):
+        r = "["
+        for block in self.get_blocks():
+            r += str(block)+"_"
+        return r[:-2]+"]"
     
 class Blocks_world():
 
-    bk = ["on(+state,+block,-block)",
+    bk = ["high_tower(+state,+tower)",
           "value(state)"]
 
     def __init__(self,number=1,start=False):
@@ -74,6 +80,11 @@ class Blocks_world():
                 return False
         return True
 
+    def getReward(self):
+        if self.goal:
+            return 100
+        return -1
+
     def print_world(self):
         for tower in self.towers:
             print (tower)
@@ -92,15 +103,16 @@ class Blocks_world():
     def get_state_facts(self):
         facts = []
         for tower in self.towers:
-            blocks = tower.get_blocks()
-            n_blocks = len(blocks)
-            for i in range(n_blocks-1):
-                facts.append("on(s"+str(self.state_number)+",b"+blocks[i].block_number+",b"+blocks[i+1].block_number+")")
+            if tower.too_high():
+                facts.append("high_tower(s{},t{})".format(self.state_number,tower.tower_number))
         return facts
 
     def sample(self,pdf):
         cdf = [(i, sum(p for j,p in pdf if j < i)) for i,_ in pdf]
-        R = max(i for r in [random.random()] for i,c in cdf if c <= r)
+        try:
+            R = max(i for r in [random.random()] for i,c in cdf if c <= r)
+        except ValueError:
+            R = random.choice(self.all_actions)
         return R
 
     def execute_random_action(self):
@@ -118,6 +130,9 @@ class Blocks_world():
         sampled_action = self.sample(probability_distribution_function)
         new_state = self.execute_action(sampled_action)
         return (new_state,[sampled_action],actions_not_executed)
+
+    def __str__(self):
+        return "".join([str(x) for x in self.towers])
 
 '''
 with open("blocks_world_out.txt","a") as f:
