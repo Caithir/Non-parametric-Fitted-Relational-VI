@@ -37,6 +37,7 @@ class FittedValueIteration(object):
         self.model = self.getModel(regression = True,treeDepth=2,sampling_rate=0.7)
         self.simulatorName = simulator
         self.simulator = self.getSimulator(self.simulatorName)
+        self.cumulativeTrajectories = []
         self.model.learn(self.simulator.get_state_facts(),["value(s{}) 0.0".format(str(self.simulator))], self.simulator.bk)
 
     def GBAD(self, discountFactor = .9):
@@ -44,6 +45,7 @@ class FittedValueIteration(object):
             values = defaultdict(int)
             facts, examples, bk =[], [], self.simulator.bk
             X = self.sampleTrajectories(self.batch_size)
+            self.cumulativeTrajectories.append(X)
 
             # state representations not actual states
             for currentState, reward, nextState in X:
@@ -55,9 +57,10 @@ class FittedValueIteration(object):
 
     def RFGB(self, values, facts, examples, bk, i):
         self.model.learn(facts,examples,bk)
-        averageBellmanError  = self.averageBellmanError()
-        with open("./outputs/{}_BEs.txt".format(self.simulatorName),"a") as f:
-            f.write("iteration: {} average bellman error: {} \n".format(i,averageBellmanError))
+
+        # averageBellmanError  = self.averageBellmanError()
+        with open("./outputs/{}_DRs.txt".format(self.simulatorName),"a") as f:
+            f.write("iteration: {} Discounted reward: {} \n".format(i,averageBellmanError))
 
     def averageBellmanError(self):
         bellmanErrors = []
@@ -121,7 +124,13 @@ class FittedValueIteration(object):
                     continue
                 trajectories.extend(trajectory)
         return trajectories
-               
+    
+    #do this over the trajs at once? does it matter that much?
+    def discountedSumOfRewards(self, trajectory, discountFactor = .9):
+        discountedReward = 0
+        iteration = 0
+        for _, reward, _ in trajectory:
+            discountedReward+= pow(discountFactor, iteration) * reward
 
     def getModel(self,regression = True,treeDepth=2,sampling_rate=0.7):
         model = GradientBoosting(regression = True,treeDepth=2,trees=self.trees,sampling_rate=0.7,loss=self.loss)
