@@ -5,17 +5,16 @@ class Game(object):
     bk = ["player_sum(+state,[low;high;very_high;blackjack])",
           "dealer_face_card(+state,[low;high;very_high])",
           "value(state)"]
-    
-    def __init__(self,number=1,start=False):
+
+    def __init__(self,start=False):
         '''class constructor'''
         if start:
-            self.state_number = number
             self.cards = self.makeCardDeck()
             self.initPSum = self.drawTwo(tot=True)
             self.initDCards = self.drawTwo()
             self.hand = [self.initPSum,self.initDCards[0]]
             self.all_actions = ["hit","stand"]
-            #self.features = ["playerSum","dealerFaceCard"]
+            self.stand = False
 
     def bust(self):
         '''checks if player has bust'''
@@ -29,20 +28,22 @@ class Game(object):
         return [float(item) for item in list(self.hand)]
         
     def getReward(self):
-        if self.goal:
-            return 100
         if self.bust():
             return -50
+        if self.goal():
+            pSum = self.hand[0]
+            dSum = sum([float(item) for item in self.initDCards])
+            if pSum > dSum:
+                return 100
         return 0
 
     def goal(self):
         '''checks who won'''
-        pSum = self.hand[0]
-        dSum = sum([float(item) for item in self.initDCards])
-        if pSum >= dSum:
+        if self.bust():
             return True
-        else:
-            return False
+        if self.stand:
+            return True
+        return False    
 
     def execute_action(self,action):
         '''performs action and returns state'''
@@ -56,12 +57,9 @@ class Game(object):
             pSum = self.hand[0]
             npSum = float(pSum)+float(card)
             self.hand[0] = npSum
-            if self.bust():
-                self.hand[0] = pSum
-                self.cards.append(card)
-                return self
             return self
         elif action == "stand":
+            self.stand = True
             return self
 
     def get_state_facts(self):
@@ -90,6 +88,10 @@ class Game(object):
             R = random.choice(self.all_actions)
         return R
 
+    def get_legal_actions(self):
+        return self.all_actions
+
+
     def execute_random_action(self):
         N = len(self.all_actions)
         random_actions = []
@@ -103,7 +105,7 @@ class Game(object):
         probability_distribution_function = zip(random_actions,action_probabilities)
         sampled_action = self.sample(probability_distribution_function)
         new_state = self.execute_action(sampled_action)
-        return (new_state,[sampled_action],actions_not_executed)
+        return (new_state,sampled_action,actions_not_executed)
 
     def makeCardDeck(self):
         '''makes a deck of cards'''
@@ -143,16 +145,3 @@ class Game(object):
 
     def __str__(self):
         return "{}:{}".format(self.hand[0], self.hand[1])
-'''
-with open("black_jack_out.txt","a") as f:
-    i = 0
-    while i < 2:
-        state = Game(start=True)
-        f.write("start state: "+str(state.get_state_facts())+"\n")
-        while not state.goal():
-            f.write("="*80+"\n")
-            state_action_pair = state.execute_random_action()
-            state = state_action_pair[0]
-            f.write(str(state.get_state_facts())+"\n")
-        i += 1
-'''

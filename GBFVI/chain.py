@@ -41,6 +41,16 @@ class Chain(object):
             return False
         return True
 
+    def get_legal_actions(self):
+        actions = []
+        cell = self.position
+        for action in self.all_actions:
+            if action == "left" and self.valid(cell-1):
+                actions.append(action)
+            elif action == "right" and  self.valid(cell+1):    
+                actions.append(action)
+        return actions
+
     def execute_action(self,action):
         '''returns new state
            invalid action does nothing
@@ -57,12 +67,14 @@ class Chain(object):
                     self.position = cell-1
                     return self
                 elif not self.valid(cell-1):
+                    
                     return self
             elif action == "right":
                 if self.valid(cell+1):
                     self.position = cell+1
                     return self
                 elif not self.valid(cell+1):
+                
                     return self
 
     def get_state_facts(self):
@@ -71,6 +83,8 @@ class Chain(object):
         Z = 0
         potentials = []
         cell = self.position
+        if self.goal():
+            return ["excellent(s{})".format(self.__str__()) for i in range(2)]
         for kernel in kernels:
             potential = self.kernelProb(cell,kernel,2)
             potentials += [potential]
@@ -94,11 +108,12 @@ class Chain(object):
         return R
 
     def execute_random_action(self):
-        N = len(self.all_actions)
+        legat_actions = self.get_legal_actions()
+        N = len(legat_actions)
         random_actions = []
         action_potentials = []
         for i in range(N):
-            random_action = random.choice(self.all_actions)
+            random_action = random.choice(legat_actions)
             random_actions.append(random_action)
             action_potentials.append(random.randint(1,9))
         action_probabilities = [potential/float(sum(action_potentials)) for potential in action_potentials]
@@ -107,6 +122,7 @@ class Chain(object):
         sampled_action = self.sample(probability_distribution_function)
         new_state = self.execute_action(sampled_action)
         return (new_state,sampled_action,actions_not_executed)
+
 
     def kernelProb(self,cell,kernel,std):
         '''gaussian kernel'''

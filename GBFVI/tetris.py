@@ -2,6 +2,7 @@
 #-*- coding: utf-8 -*-
 import random
 from pykeyboard import PyKeyboard
+from collections import defaultdict
 def send_key(key):
     '''simulates key press'''
     keyboard = PyKeyboard()
@@ -52,6 +53,7 @@ import pygame, sys
 
 class TetrisGame():
     # The configuration
+    global cell_size, cols, rows, maxfps, colors, tetris_shapes
     cell_size =    18
     cols =        10
     rows =        22
@@ -91,7 +93,9 @@ class TetrisGame():
         [[7, 7],
          [7, 7]]
     ]
-    
+
+    global rotate_clockwise, check_collision, remove_row, join_matrixes, new_board
+
     def rotate_clockwise(shape):
         return [ [ shape[y][x]
                 for y in xrange(len(shape)) ]
@@ -138,9 +142,7 @@ class TetrisApp(object):
         self.paused = False
         self.n_stones = 0
         self.bground_grid = [[ 8 if x%2==y%2 else 0 for x in xrange(cols)] for y in xrange(rows)]
-        self.shape_counts = {}
-        for shape in tetris_shapes:
-                        self.shape_counts[tuple([tuple(item) for item in shape])] = 0
+
         self.default_font =  pygame.font.Font(
             pygame.font.get_default_font(), 12)
         
@@ -149,16 +151,18 @@ class TetrisApp(object):
                                                      # mouse movement
                                                      # events, so we
                                                      # block them.
+        self.currentStoneType  = -1
         self.next_stone = tetris_shapes[rand(len(tetris_shapes))]
+        self.currentStoneOrientation = 0
+        
         self.init_game()
     
     def new_stone(self):
         self.stone = self.next_stone[:]
-        if self.stone in tetris_shapes:
-            stone_tuple = tuple([tuple(item) for item in self.stone])
-            self.shape_counts[stone_tuple] += 1
         self.n_stones += 1
+        self.currentStoneType  = tetris_shapes.index(self.stone)
         self.next_stone = tetris_shapes[rand(len(tetris_shapes))]
+        self.currentStoneOrientation = 0
         self.stone_x = int(cols / 2 - len(self.stone[0])/2)
         self.stone_y = 0
         if check_collision(self.board,
@@ -274,12 +278,15 @@ class TetrisApp(object):
     
     def rotate_stone(self):
         if not self.gameover and not self.paused:
+            
             new_stone = rotate_clockwise(self.stone)
             if not check_collision(self.board,
                                    new_stone,
                                    (self.stone_x, self.stone_y)):
                 self.stone = new_stone
-    
+                self.currentStoneOrientation+=1
+                self.currentStoneOrientation%=4
+
     def toggle_pause(self):
         self.paused = not self.paused
     
@@ -342,33 +349,45 @@ Press space to continue""" % self.score)
                         if event.key == eval("pygame.K_"
                         +key):
                             key_actions[key]()
-                    
+                            print self.currentStoneType
+                            print self.currentStoneOrientation
             dont_burn_my_cpu.tick(maxfps)
             i += 1
 
+
+if __name__ == '__main__':
+    s = TetrisApp()
+    s.run()
+    
+
 class Tetris(object):
     '''class for Tetris simulator'''
-    bk = ["shape_count(+state,+shape,[high;low])",
+
+    # bk = ["tower_height(+state, +tower, +height)", "piece_type(+state, +typeNumber)", "piece_orientation(+state, +orientation)",
+    #       "value(state)"]
+
+
+    bk = ["tower_height(+state, +tower, [very_low;low;high;very_high])", "piece_type(+state, +typeNumber)", "piece_orientation(+state, +orientation)",
           "value(state)"]
+        #type of piece orientation hieght of all vertical towers
     
     def __init__(self,state_number = 1,start=False):
             '''class constructor'''
             if start:
-                self.nstones = 0
-                self.state_number = 1
                 self.goal_state = False
-                self.shape_counts = [0 for i in range(7)]
                 self.run = TetrisApp()
             self.all_actions = ['w','a','s','d']
+
+
     def goal(self):
         if self.goal_state:
             return True
         return False
+
     def execute_action(self,action):
         '''returns new state
            does nothing on invalid actions
         '''
-        self.state_number += 1
         if action not in self.all_actions:
                 return state
         key_actions = {
@@ -382,63 +401,71 @@ class Tetris(object):
         'RETURN':    self.run.insta_drop
         }
     
-        #self.gameover = False
-        #self.paused = False
-        
         dont_burn_my_cpu = pygame.time.Clock()
-        i = 0
-        while i < 1:
-            self.run.screen.fill((0,0,0))
-            if self.run.gameover:
-                self.goal_state = True
-                return self
-                #self.run.center_msg("""Game Over!\nYour score: %d Press space to continue""" % self.run.score)
-            else:
-                if self.run.paused:
-                    self.run.center_msg("Paused")
-                else:
-                    pygame.draw.line(self.run.screen,
-                        (255,255,255),
-                        (self.run.rlim+1, 0),
-                        (self.run.rlim+1, self.run.height-1))
-                    self.run.disp_msg("Next:", (
-                        self.run.rlim+cell_size,
-                        2))
-                    self.run.disp_msg("Score: %d\n\nLevel: %d\\nLines: %d" % (self.run.score, self.run.level, self.run.lines),(self.run.rlim+cell_size, cell_size*5))
-                    self.run.draw_matrix(self.run.bground_grid, (0,0))
-                    self.run.draw_matrix(self.run.board, (0,0))
-                    self.run.draw_matrix(self.run.stone,
-                        (self.run.stone_x, self.run.stone_y))
-                    self.run.draw_matrix(self.run.next_stone,
-                        (cols+1,2))
-            pygame.display.update()
-            for event in pygame.event.get():
-                send_key(action)
-                if event.type == pygame.USEREVENT+1:
-                    self.run.drop(False)
-                elif event.type == pygame.QUIT:
-                    self.run.quit()
-                elif event.type == pygame.KEYDOWN:
-                    for key in key_actions:
-                        if event.key == eval("pygame.K_"
-                        +key):
-                            key_actions[key]()
-                    
+        
+        
+        self.run.screen.fill((0,0,0))
+        if self.run.gameover:
+            self.goal_state = True
+            return self
+                
+
+        pygame.draw.line(self.run.screen,
+            (255,255,255),
+            (self.run.rlim+1, 0),
+            (self.run.rlim+1, self.run.height-1))
+        self.run.disp_msg("Next:", (
+            self.run.rlim+cell_size,
+            2))
+        self.run.disp_msg("Score: %d\n\nLevel: %d\nLines: %d" % (self.run.score, self.run.level, self.run.lines),(self.run.rlim+cell_size, cell_size*5))
+        self.run.draw_matrix(self.run.bground_grid, (0,0))
+        self.run.draw_matrix(self.run.board, (0,0))
+        self.run.draw_matrix(self.run.stone,
+            (self.run.stone_x, self.run.stone_y))
+        self.run.draw_matrix(self.run.next_stone,  (cols+1,2))
+        pygame.display.update()
+        for event in pygame.event.get():
+            # send_key(action)
+            if event.type == pygame.USEREVENT+1:
+                self.run.drop(False)
+            elif event.type == pygame.QUIT:
+                self.run.quit()
+            elif event.type == pygame.KEYDOWN:
+                for key in key_actions:
+                    if event.key == eval("pygame.K_"
+                    +key):
+                        key_actions[key]()
+           
             dont_burn_my_cpu.tick(maxfps)
-            i += 1
-        self.nstones = self.run.n_stones
-        self.shape_counts = self.run.shape_counts.values()
+        key_actions[action]() 
+
         return self
 
     def get_state_facts(self):
-            facts = []
-            N = len(self.shape_counts)
-            for i in range(N):
-                if self.shape_counts[i] > 2:
-                    facts.append("shape_count(s"+str(self.state_number)+",sh"+str(i+1)+",high)")
-                elif self.shape_counts[i] <=2:
-                    facts.append("shape_count(s"+str(self.state_number)+",sh"+str(i+1)+",low)")
-            return facts
+        facts = []
+        heights = {}
+        for col in range(len(self.run.board[0])):
+            colDone = False
+            for row in self.run.board[:-1]:
+                if row[col] != 0 and not colDone:
+                    colDone = True
+                    height = self.run.board.index(row)
+                    description = "very_low"
+                    if height > 5: description = "low" 
+                    if height > 10: description = "high"
+                    if height > 16: description = "very_high" 
+                    heights[col]= description
+                    
+        facts+= ["tower_height({},{},{})".format(self.__str__(), str(col), height) for col , height in heights.items()]
+        facts.append('piece_type({},{})'.format(self.__str__(), str(self.run.currentStoneType)))
+        facts.append('piece_orientation({},{})'.format(self.__str__(), str(self.run.currentStoneOrientation)))                
+        facts.append("position({},{},{})".format(self.__str__(), str(self.run.stone_y), str(self.run.stone_x)))
+        return facts
+
+    def getReward(self):
+        return self.run.score
+
+
 
     def sample(self,pdf):
         cdf = [(i, sum(p for j,p in pdf if j < i)) for i,_ in pdf]
@@ -449,7 +476,7 @@ class Tetris(object):
         random_actions = []
         action_potentials = []
         for i in range(N):
-            random_action = random.choice(self.all_actions)
+            random_action = random.choice(self.get_legal_actions())
             random_actions.append(random_action)
             action_potentials.append(random.randint(1,9))
         action_probabilities = [potential/float(sum(action_potentials)) for potential in action_potentials]
@@ -457,28 +484,29 @@ class Tetris(object):
         probability_distribution_function = zip(random_actions,action_probabilities)
         sampled_action = self.sample(probability_distribution_function)
         new_state = self.execute_action(sampled_action)
-        return (new_state,[sampled_action],actions_not_executed)
+        return (new_state,sampled_action,actions_not_executed)
             
-
-    def factored(self,state):
-                '''returns factored state'''
-                return [self.nstones]+self.shape_counts
+    def get_legal_actions(self):
+        actions = ["s"]
+        new_stone = rotate_clockwise(self.run.stone)
+        if not check_collision(self.run.board, new_stone, (self.run.stone_x, self.run.stone_y)):
+            actions.append('w')
+        delta_x = 1
+        new_x = self.run.stone_x + delta_x
+        if new_x <= cols - len(self.run.stone[0]) and not check_collision(self.run.board, self.run.stone,(new_x, self.run.stone_y)):
+            actions.append("d")
+        delta_x = -1
+        new_x = self.run.stone_x + delta_x
+        if new_x >= 0 and not check_collision(self.run.board, self.run.stone,(new_x, self.run.stone_y)):
+            actions.append("a")
+        return actions
+        
 
     def __repr__(self):
             '''outputs this on call to print'''
-            output_string = str(self.nstones)+","
-            output_string += ",".join([str(x) for x in self.shape_counts])
+            output_string = '\n'.join([str(x) for x in self.run.board])
             return output_string
-'''
-with open("tetris_out.txt","a") as f:
-    i = 0
-    while i < 2:
-        state = Tetris(start = True)
-        f.write("start state: "+str(state.get_state_facts())+"\n")
-        while not state.goal():
-            f.write("="*80+"\n")
-            state_action_pair = state.execute_random_action()
-            state = state_action_pair[0]
-            f.write(str(state.get_state_facts())+"\n")
-        i += 1
-'''
+
+    def __str__(self):
+        return '\n'.join(["".join([str(entry) for entry in x]) for x in self.run.board])
+             

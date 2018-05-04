@@ -15,21 +15,38 @@ class Wumpus(object):
             self.grid = [[0 for i in range(N)] for j in range(N)]
             self.goal_x,self.goal_y = self.size-1,self.size-1
             self.all_actions = ["left","right","top","down"]
-            self.grid[2][1] = 1 #wumpus
+            self.grid[0][2] = 1 #wumpus
             self.grid[3][1] = -1 #pit
             self.position = (0,0)
 
     def goal(self):
         if self.position == (self.goal_x,self.goal_y):
             return True
+        #Dies at wumpus
+        if self.grid[self.position[0]][self.position[1]] == 1:
+            return True
         return False
 
+    def get_legal_actions(self):
+        actions = []
+        x,y = self.position[0],self.position[1]
+        for action in self.all_actions:
+            if action == "left" and self.valid(x-1,y):
+                actions.append(action)
+            elif action == "right" and self.valid(x+1,y):
+                actions.append(action)
+            elif action == "top" and self.valid(x,y+1):
+                actions.append(action)
+            elif action == "down" and self.valid(x,y-1):
+                actions.append(action)
+        return actions
+
     def getReward(self):
+        # At the wumpus
+        if self.grid[self.position[0]][self.position[1]] == 1:
+            return -50
         if self.goal():
             return 100
-        # At the wumpus
-        if self.position[0] == 2 and self.position[1] == 1:
-            return -50
         return -1 
 
     def valid(self,x,y):
@@ -40,26 +57,27 @@ class Wumpus(object):
 
     def execute_action(self,action):
         '''takes an action and returns new state'''
+
         self.state_number += 1
         x,y = self.position[0],self.position[1]
         if action in self.all_actions:
             if action == "left":
-                if self.valid(x-1,y) and abs(self.grid[x-1][y]) != 1:
+                if self.valid(x-1,y) and self.grid[x-1][y] != -1:
                     self.position = (x-1,y)
                 else:
                     self.position = (x,y)
             elif action == "right":
-                if self.valid(x+1,y) and abs(self.grid[x+1][y]) != 1:
+                if self.valid(x+1,y) and self.grid[x+1][y] != -1:
                     self.position = (x+1,y)
                 else:
                     self.position = (x,y)
             elif action == "top":
-                if self.valid(x,y+1) and abs(self.grid[x][y+1]) != 1:
+                if self.valid(x,y+1) and self.grid[x][y+1] != -1:
                     self.position = (x,y+1)
                 else:
                     self.position = (x,y)
             elif action == "down":
-                if self.valid(x,y-1) and abs(self.grid[x][y-1]) != 1:
+                if self.valid(x,y-1) and self.grid[x][y-1] != -1:
                     self.position = (x,y-1)
                 else:
                     self.position = (x,y)
@@ -106,8 +124,9 @@ class Wumpus(object):
     def execute_random_action(self,N=4):
         random_actions = []
         action_potentials = []
+        legal_actions = self.get_legal_actions()
         for i in range(N):
-            random_action = random.choice(self.all_actions)
+            random_action = random.choice(legal_actions)
             random_actions.append(random_action)
             action_potentials.append(random.randint(1,9))
         action_probabilities = [potential/float(sum(action_potentials)) for potential in action_potentials]

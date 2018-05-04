@@ -7,7 +7,7 @@ from blackjack import Game
 from chain import Chain
 from net_admin import Admin
 # from pong import Pong 
-# from tetris import Tetris
+from tetris import Tetris
 from time import clock
 from GradientBoosting import GradientBoosting
 from copy import deepcopy
@@ -22,7 +22,7 @@ def main():
     Command line arguments follow the form: -<variable_name> <value>
     example to run wumpus world with 100 iterations and a batchsize of 20: -simulator wumpus -number_of_iterations 100 -batch_size 20
 '''
-    options = {"simulator": "50chain",
+    options = {"simulator": "tetris",
                "batch_size": 10,
                "number_of_iterations": 20}
     if len(sys.argv) > 1:
@@ -36,7 +36,6 @@ class QLearning(object):
         self.loss = loss
         self.trees = int(trees)
         self.number_of_iterations = int(number_of_iterations)
-        # self.model = self.getModel(regression = True,treeDepth=2,sampling_rate=0.7)
         self.simulatorName = simulator
         self.simulator = self.getSimulator(self.simulatorName)
         self.modelsUninitialized = True
@@ -44,7 +43,6 @@ class QLearning(object):
         self.actionFunctions = {}
         for action in self.simulator.all_actions:
             self.actionFunctions[action] = self.getModel(regression = True,treeDepth=2,sampling_rate=0.7)
-            # self.actionFunctions[action].learn(self.simulator.get_state_facts(),["value(s{}) 0.0".format(str(self.simulator))], self.simulator.bk)
 
 
     def GBAD(self, discountFactor = .9):
@@ -55,18 +53,21 @@ class QLearning(object):
            
             # state representations not actual states
             for currentState, action, reward, nextState in X:
-                
                 nextStateValue, _ = self.qValueFromModel(nextState, prevState= currentState)
                 Q[(currentState[0], action)] = reward+discountFactor*nextStateValue
     
                 facts[action].extend(currentState[1])
                 examples[action].append("value(s{}) {}".format(currentState[0], Q[(currentState[0], action)]))
+
+            #Goal states transition to themselves but thier q value needs to be defined over an action from the simulator
+            for action in self.simulator.all_actions:
+                facts[action].extend(facts[""])
+                examples[action].extend(examples[""])
             self.RFGB( facts, examples, bk)
-            if i >5:
-                self.averageDiscountedSumOfReturns(Q)
+            self.averageDiscountedSumOfReturns()
 
 
-    def averageDiscountedSumOfReturns(self, Q, number_of_runs = 10):
+    def averageDiscountedSumOfReturns(self, number_of_runs = 10):
         with open("./outputs/{}_DRs.txt".format(self.simulatorName),"a") as f:
             
             discountedSums=[]
@@ -74,21 +75,17 @@ class QLearning(object):
                 rewards = self.sampleTrajectoryFromPolicy()
                 discountedSum = self.discountedSumOfRewards(rewards)
                 if discountedSum != None:
-                    discountedSums.append(discountedSum)
-            f.write("".join(["{} : ".format(x) for x in discountedSums]))    
+                    discountedSums.append(discountedSum) 
             averageDiscountedSum = float(sum(discountedSums)) / max(len(discountedSums), 1)
-            f.write("Average Discounted reward: {} \n".format(i, averageDiscountedSum))
+            f.write("Average Discounted reward: {} \n".format( averageDiscountedSum))
             return averageDiscountedSum
             
-    def get_value(self, Q, state):
-        keysWithState = [item for item in Q if state in item]
-        return max([Q[key] for key in keysWithState])
-
+   
     def sampleTrajectoryFromPolicy(self):
         """
         Returns a list of reward for a given policy
         """
-        timeout = {"logistics":0.5, "pong":1000, "tetris":10, "wumpus":1,
+        timeout = {"logistics":0.5, "pong":1000, "tetris":9999999, "wumpus":1,
             "blocks":1, "blackjack":1, "50chain":1, "net_id":1}
     
         state = self.getSimulator(self.simulatorName)
@@ -96,25 +93,17 @@ class QLearning(object):
         rewards = []
         while not state.goal():
             #exucute_random_action modifies the state so relevant information needs to be extracted first
-            _, action = self.qValueFromModel((str(state), state.get_state_facts()))
+            _, action = self.qValueFromModel((str(state), state.get_state_facts()), actions=state.get_legal_actions())
             rewards.append(state.getReward())
-            # prevState = str(state)
-            # validMove = False
             state.execute_action(action)
-            #edge case handling for the first iteration where the action from policy might be invalid
-            # while not validMove:
-            #     if str(state) != prevState:
-            #         validMove = True
-            #     else:
-            #         state.execute_random_action()
-                        
-            print("state: " +str(state), "act: ", action)
+            end = clock()           
+            time_elapsed = abs(end-start)
+            if time_elapsed > timeout[self.simulatorName]:
+                print("Time out")
+                return []
         rewards.append(state.getReward())
-        end = clock()
-        time_elapsed = abs(end-start)
-        if time_elapsed > timeout[self.simulatorName]:
-            print("Time out")
-            return None
+        
+        
         return rewards
 
 
@@ -132,16 +121,18 @@ class QLearning(object):
         for action in self.simulator.all_actions:
             self.actionFunctions[action].learn(facts[action],examples[action],bk)
 
-    def qValueFromModel(self, state, prevState=None):
+
+    def qValueFromModel(self, state, prevState=None, actions=None):
         if self.modelsUninitialized:
             return 0, ""
         if prevState:
             if state[0] == prevState[0]:
                 return 0, ""    
-        # if state[0] == "13":
-        #     print "ETSDF"
+        if not actions:
+            actions = self.actionFunctions.keys()
         inferedValues = []
-        for action, model in self.actionFunctions.items():
+        for action in actions:
+            model = self.actionFunctions[action]
             facts, examples= [], []
             facts.extend(state[1])
             example_predicate = "value(s{})".format(state[0])
@@ -151,8 +142,6 @@ class QLearning(object):
             inferedValues.append((model.testExamples["value"][example_predicate], action))
 
         maxValue, maxAction = max(inferedValues, key=lambda item:item[0])
-        # print('x'*80)
-        # print "val: ", maxValue, "act: ", maxAction
         return maxValue, maxAction
 
 
@@ -162,7 +151,8 @@ class QLearning(object):
             state and next_state are themselves tuples containing the state representation and the facts of the state
         """
         trajectories = []
-        timeout = {"logistics":0.5, "pong":1000, "tetris":10, "wumpus":1,
+        test = {}
+        timeout = {"logistics":0.5, "pong":1000, "tetris":999999, "wumpus":1,
             "blocks":1, "blackjack":1, "50chain":1, "net_id":1}
         for i in range(number_of_trajectories):
                 
@@ -171,29 +161,25 @@ class QLearning(object):
                 state = self.getSimulator(self.simulatorName)
                 start = clock()
                 trajectory = []
+                prevState = ""
                 while not state.goal():
                     # f.write("{}\n".format('='*80))
                     #exucute_random_action modifies the state so relevant information needs to be extracted first
+                    
                     reward = state.getReward()
                     stateRep = str(state)
                     stateFacts = state.get_state_facts()
-
-                    validMove = False
-                    while not validMove:
-                        if str(state) != stateRep:
-                            validMove = True
-                        else:
-                            nextState, action, _ = state.execute_random_action()
-                    
+                    prevState = stateRep
+    
+                    nextState, action, _ = state.execute_random_action()
+                   
                     
                     newStateRep= stateRep 
-                    self.stateTransitions[(stateRep, action)] = ((str(nextState), nextState.get_state_facts()), (newStateRep, stateFacts))
                     
                     trajectory.append(( (newStateRep, stateFacts), action, reward, (str(nextState), nextState.get_state_facts()) ))
-                    
-                    # f.write("{} : {}\n".format(newStateRep, stateFacts))
+                #adding goal state to trajectory    
                 trajectory.append(((str(state), state.get_state_facts()), '', state.getReward(), (str(state), state.get_state_facts())))
-                self.stateTransitions[(str(state), '')] = ((str(state), state.get_state_facts()), (str(state), state.get_state_facts()))
+            
                 end = clock()
                 time_elapsed = abs(end-start)
                 if time_elapsed > timeout[self.simulatorName]:
@@ -206,6 +192,7 @@ class QLearning(object):
         discountedReward = 0.0
         for iteration, reward in enumerate(rewards):
             discountedReward += pow(discountFactor, iteration) * reward
+        return discountedReward
 
     def getModel(self,regression = True,treeDepth=2,sampling_rate=0.7):
         model = GradientBoosting(regression = True,treeDepth=2,trees=self.trees,sampling_rate=0.7,loss=self.loss)
